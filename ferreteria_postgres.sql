@@ -1,15 +1,18 @@
 -- =====================================================
--- Script PostgreSQL - Sistema de Inventario Ferreteria – Hecho por Arturo Sánchez Encina
+-- Script PostgreSQL - Sistema de Inventario Ferreteria - Hecho por Arturo Sánchez Encina
 -- CREATE DATABASE ferreteria_db;
 -- =====================================================
 
 -- ---------- Creacion de tablas ----------
 
+-- ===== Modulo de catalogo =====
 CREATE TABLE categorias (
     id_categoria INT NOT NULL,
     nombre VARCHAR(50) NOT NULL,
     descripcion VARCHAR(150) NOT NULL,
-    CONSTRAINT pk_categorias PRIMARY KEY (id_categoria)
+    CONSTRAINT pk_categorias PRIMARY KEY (id_categoria),
+    CONSTRAINT uq_categorias_nombre UNIQUE (nombre),
+    CONSTRAINT ck_categorias_nombre CHECK (LENGTH(TRIM(nombre)) > 0)
 );
 
 CREATE TABLE productos (
@@ -19,11 +22,17 @@ CREATE TABLE productos (
     unidad_medida VARCHAR(20) NOT NULL,
     precio_compra DECIMAL(10,2) NOT NULL,
     precio_venta DECIMAL(10,2) NOT NULL,
-    stock_minimo INT NOT NULL,
+    stock_minimo INT NOT NULL DEFAULT 0,
     CONSTRAINT pk_productos PRIMARY KEY (id_producto),
-    CONSTRAINT fk_productos_id_categoria FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria)
+    CONSTRAINT fk_productos_id_categoria FOREIGN KEY (id_categoria) REFERENCES categorias(id_categoria),
+    CONSTRAINT uq_productos_nombre UNIQUE (nombre),
+    CONSTRAINT ck_productos_unidad CHECK (unidad_medida IN ('pieza', 'caja', 'cubeta', 'rollo', 'metro', 'kilogramo', 'litro', 'paquete', 'juego')),
+    CONSTRAINT ck_productos_precio_compra CHECK (precio_compra > 0),
+    CONSTRAINT ck_productos_precio_venta CHECK (precio_venta >= precio_compra),
+    CONSTRAINT ck_productos_stock_minimo CHECK (stock_minimo >= 0)
 );
 
+-- ===== Modulo de compras =====
 CREATE TABLE proveedores (
     id_proveedor INT NOT NULL,
     nombre_empresa VARCHAR(100) NOT NULL,
@@ -31,16 +40,23 @@ CREATE TABLE proveedores (
     telefono VARCHAR(20) NOT NULL,
     correo VARCHAR(80) NOT NULL,
     direccion VARCHAR(150) NOT NULL,
-    CONSTRAINT pk_proveedores PRIMARY KEY (id_proveedor)
+    CONSTRAINT pk_proveedores PRIMARY KEY (id_proveedor),
+    CONSTRAINT uq_proveedores_empresa UNIQUE (nombre_empresa),
+    CONSTRAINT ck_proveedores_telefono CHECK (LENGTH(telefono) >= 10),
+    CONSTRAINT ck_proveedores_correo CHECK (correo LIKE '%_@_%._%')
 );
 
+-- ===== Modulo de ventas =====
 CREATE TABLE clientes (
     id_cliente INT NOT NULL,
     nombre VARCHAR(100) NOT NULL,
     telefono VARCHAR(20) NOT NULL,
     correo VARCHAR(80) NOT NULL,
     direccion VARCHAR(150) NOT NULL,
-    CONSTRAINT pk_clientes PRIMARY KEY (id_cliente)
+    CONSTRAINT pk_clientes PRIMARY KEY (id_cliente),
+    CONSTRAINT ck_clientes_nombre CHECK (LENGTH(TRIM(nombre)) > 0),
+    CONSTRAINT ck_clientes_telefono CHECK (LENGTH(telefono) >= 10),
+    CONSTRAINT ck_clientes_correo CHECK (correo LIKE '%_@_%._%')
 );
 
 CREATE TABLE empleados (
@@ -48,26 +64,34 @@ CREATE TABLE empleados (
     nombre VARCHAR(100) NOT NULL,
     puesto VARCHAR(50) NOT NULL,
     telefono VARCHAR(20) NOT NULL,
-    fecha_ingreso DATE NOT NULL,
-    CONSTRAINT pk_empleados PRIMARY KEY (id_empleado)
+    fecha_ingreso DATE NOT NULL DEFAULT CURRENT_DATE,
+    CONSTRAINT pk_empleados PRIMARY KEY (id_empleado),
+    CONSTRAINT ck_empleados_nombre CHECK (LENGTH(TRIM(nombre)) > 0),
+    CONSTRAINT ck_empleados_telefono CHECK (LENGTH(telefono) >= 10),
+    CONSTRAINT ck_empleados_fecha_ingreso CHECK (fecha_ingreso >= '2000-01-01')
 );
 
+-- ===== Modulo de inventario =====
 CREATE TABLE almacenes (
     id_almacen INT NOT NULL,
     nombre VARCHAR(80) NOT NULL,
     ubicacion VARCHAR(150) NOT NULL,
-    CONSTRAINT pk_almacenes PRIMARY KEY (id_almacen)
+    CONSTRAINT pk_almacenes PRIMARY KEY (id_almacen),
+    CONSTRAINT uq_almacenes_nombre UNIQUE (nombre)
 );
 
+-- ===== Modulo de compras (movimientos) =====
 CREATE TABLE compras (
     id_compra INT NOT NULL,
     id_proveedor INT NOT NULL,
     id_empleado INT NOT NULL,
-    fecha DATE NOT NULL,
-    total DECIMAL(10,2) NOT NULL,
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+    total DECIMAL(10,2) NOT NULL DEFAULT 0,
     CONSTRAINT pk_compras PRIMARY KEY (id_compra),
     CONSTRAINT fk_compras_id_proveedor FOREIGN KEY (id_proveedor) REFERENCES proveedores(id_proveedor),
-    CONSTRAINT fk_compras_id_empleado FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado)
+    CONSTRAINT fk_compras_id_empleado FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado),
+    CONSTRAINT ck_compras_total CHECK (total >= 0),
+    CONSTRAINT ck_compras_fecha CHECK (fecha >= '2020-01-01')
 );
 
 CREATE TABLE detalle_compras (
@@ -79,19 +103,27 @@ CREATE TABLE detalle_compras (
     subtotal DECIMAL(10,2) NOT NULL,
     CONSTRAINT pk_detalle_compras PRIMARY KEY (id_detalle_compra),
     CONSTRAINT fk_detalle_compras_id_compra FOREIGN KEY (id_compra) REFERENCES compras(id_compra),
-    CONSTRAINT fk_detalle_compras_id_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+    CONSTRAINT fk_detalle_compras_id_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+    CONSTRAINT uq_detalle_compras_producto UNIQUE (id_compra, id_producto),
+    CONSTRAINT ck_detalle_compras_cantidad CHECK (cantidad > 0),
+    CONSTRAINT ck_detalle_compras_precio CHECK (precio_unitario > 0),
+    CONSTRAINT ck_detalle_compras_subtotal CHECK (subtotal = cantidad * precio_unitario)
 );
 
+-- ===== Modulo de ventas (movimientos) =====
 CREATE TABLE ventas (
     id_venta INT NOT NULL,
     id_cliente INT NOT NULL,
     id_empleado INT NOT NULL,
-    fecha DATE NOT NULL,
-    total DECIMAL(10,2) NOT NULL,
-    metodo_pago VARCHAR(20) NOT NULL,
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+    total DECIMAL(10,2) NOT NULL DEFAULT 0,
+    metodo_pago VARCHAR(20) NOT NULL DEFAULT 'Efectivo',
     CONSTRAINT pk_ventas PRIMARY KEY (id_venta),
     CONSTRAINT fk_ventas_id_cliente FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente),
-    CONSTRAINT fk_ventas_id_empleado FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado)
+    CONSTRAINT fk_ventas_id_empleado FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado),
+    CONSTRAINT ck_ventas_total CHECK (total >= 0),
+    CONSTRAINT ck_ventas_metodo_pago CHECK (metodo_pago IN ('Efectivo', 'Tarjeta', 'Transferencia')),
+    CONSTRAINT ck_ventas_fecha CHECK (fecha >= '2020-01-01')
 );
 
 CREATE TABLE detalle_ventas (
@@ -103,17 +135,24 @@ CREATE TABLE detalle_ventas (
     subtotal DECIMAL(10,2) NOT NULL,
     CONSTRAINT pk_detalle_ventas PRIMARY KEY (id_detalle_venta),
     CONSTRAINT fk_detalle_ventas_id_venta FOREIGN KEY (id_venta) REFERENCES ventas(id_venta),
-    CONSTRAINT fk_detalle_ventas_id_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto)
+    CONSTRAINT fk_detalle_ventas_id_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
+    CONSTRAINT uq_detalle_ventas_producto UNIQUE (id_venta, id_producto),
+    CONSTRAINT ck_detalle_ventas_cantidad CHECK (cantidad > 0),
+    CONSTRAINT ck_detalle_ventas_precio CHECK (precio_unitario > 0),
+    CONSTRAINT ck_detalle_ventas_subtotal CHECK (subtotal = cantidad * precio_unitario)
 );
 
+-- ===== Modulo de inventario (movimientos) =====
 CREATE TABLE inventario (
     id_inventario INT NOT NULL,
     id_producto INT NOT NULL,
     id_almacen INT NOT NULL,
-    cantidad_actual INT NOT NULL,
+    cantidad_actual INT NOT NULL DEFAULT 0,
     CONSTRAINT pk_inventario PRIMARY KEY (id_inventario),
     CONSTRAINT fk_inventario_id_producto FOREIGN KEY (id_producto) REFERENCES productos(id_producto),
-    CONSTRAINT fk_inventario_id_almacen FOREIGN KEY (id_almacen) REFERENCES almacenes(id_almacen)
+    CONSTRAINT fk_inventario_id_almacen FOREIGN KEY (id_almacen) REFERENCES almacenes(id_almacen),
+    CONSTRAINT uq_inventario_producto_almacen UNIQUE (id_producto, id_almacen),
+    CONSTRAINT ck_inventario_cantidad CHECK (cantidad_actual >= 0)
 );
 
 CREATE TABLE movimientos_inventario (
@@ -122,32 +161,36 @@ CREATE TABLE movimientos_inventario (
     id_empleado INT NOT NULL,
     tipo_movimiento VARCHAR(20) NOT NULL,
     cantidad INT NOT NULL,
-    fecha DATE NOT NULL,
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
     motivo VARCHAR(100) NOT NULL,
     CONSTRAINT pk_movimientos_inventario PRIMARY KEY (id_movimiento),
     CONSTRAINT fk_movimientos_inventario_id_inventario FOREIGN KEY (id_inventario) REFERENCES inventario(id_inventario),
-    CONSTRAINT fk_movimientos_inventario_id_empleado FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado)
+    CONSTRAINT fk_movimientos_inventario_id_empleado FOREIGN KEY (id_empleado) REFERENCES empleados(id_empleado),
+    CONSTRAINT ck_movimientos_tipo CHECK (tipo_movimiento IN ('entrada', 'salida', 'ajuste')),
+    CONSTRAINT ck_movimientos_cantidad CHECK (cantidad > 0),
+    CONSTRAINT ck_movimientos_motivo CHECK (LENGTH(TRIM(motivo)) > 0)
 );
 
 -- ---------- Insercion de datos ----------
+-- Tablas maestras: 5 registros | Tablas de movimientos (detalle): 10 registros
 
 -- categorias (5 registros)
 INSERT INTO categorias (id_categoria, nombre, descripcion)
 VALUES
     (1, 'Tornilleria', 'Tornillos, tuercas, rondanas y anclas'),
     (2, 'Pintura', 'Pinturas, brochas, rodillos y solventes'),
-    (3, 'Herramienta Manual', 'Martillos, desarmadores, llaves y pinzas'),
+    (3, 'Herramienta', 'Herramienta manual y electrica'),
     (4, 'Plomeria', 'Tubos, conexiones y accesorios hidraulicos'),
     (5, 'Electricidad', 'Cables, contactos, apagadores y focos');
 
 -- productos (5 registros)
 INSERT INTO productos (id_producto, nombre, id_categoria, unidad_medida, precio_compra, precio_venta, stock_minimo)
 VALUES
-    (1, 'Tornillo autorroscante 1 pulg (caja 100)', 1, 'caja', 45.0, 75.0, 15),
-    (2, 'Taladro percutor 1/2 pulg', 3, 'pieza', 620.0, 950.0, 5),
-    (3, 'Pintura vinilica blanca 4L', 2, 'cubeta', 180.0, 265.0, 10),
-    (4, 'Tubo PVC hidraulico 1/2 pulg x 6m', 4, 'pieza', 55.0, 89.0, 20),
-    (5, 'Cable electrico cal. 12 (rollo 100m)', 5, 'rollo', 890.0, 1250.0, 4);
+    (1, 'Tornillo autorroscante 1 pulg (caja 100)', 1, 'caja', 45.00, 75.00, 15),
+    (2, 'Taladro percutor 1/2 pulg', 3, 'pieza', 620.00, 950.00, 5),
+    (3, 'Pintura vinilica blanca 4L', 2, 'cubeta', 180.00, 265.00, 10),
+    (4, 'Tubo PVC hidraulico 1/2 pulg x 6m', 4, 'pieza', 55.00, 89.00, 20),
+    (5, 'Cable electrico cal. 12 (rollo 100m)', 5, 'rollo', 890.00, 1250.00, 4);
 
 -- proveedores (5 registros)
 INSERT INTO proveedores (id_proveedor, nombre_empresa, contacto, telefono, correo, direccion)
@@ -185,84 +228,86 @@ VALUES
     (4, 'Sucursal Sur', 'Calle Morelos 220, Sahuayo'),
     (5, 'Bodega de Temporada', 'Camino Real 8, Jiquilpan');
 
--- compras (5 registros)
+-- compras (10 registros)
 INSERT INTO compras (id_compra, id_proveedor, id_empleado, fecha, total)
 VALUES
-    (1, 1, 1, '2026-08-01', 500.0),
-    (2, 2, 2, '2026-08-02', 2480.0),
-    (3, 3, 3, '2026-08-03', 3600.0),
-    (4, 4, 4, '2026-08-04', 825.0),
-    (5, 5, 5, '2026-08-05', 2670.0);
+    (1, 2, 4, '2026-08-03', 1350.00),
+    (2, 5, 1, '2026-08-04', 6200.00),
+    (3, 3, 4, '2026-08-06', 4500.00),
+    (4, 4, 4, '2026-08-07', 2200.00),
+    (5, 4, 1, '2026-08-10', 5340.00),
+    (6, 1, 5, '2026-08-14', 900.00),
+    (7, 3, 4, '2026-08-18', 1800.00),
+    (8, 5, 1, '2026-08-21', 3100.00),
+    (9, 4, 5, '2026-08-25', 1650.00),
+    (10, 1, 4, '2026-08-28', 2670.00);
 
--- detalle_compras (5 registros)
+-- detalle_compras (10 registros)
 INSERT INTO detalle_compras (id_detalle_compra, id_compra, id_producto, cantidad, precio_unitario, subtotal)
 VALUES
-    (1, 1, 1, 10, 50.0, 500.0),
-    (2, 2, 2, 4, 620.0, 2480.0),
-    (3, 3, 3, 20, 180.0, 3600.0),
-    (4, 4, 4, 15, 55.0, 825.0),
-    (5, 5, 5, 3, 890.0, 2670.0);
+    (1, 1, 1, 30, 45.00, 1350.00),
+    (2, 2, 2, 10, 620.00, 6200.00),
+    (3, 3, 3, 25, 180.00, 4500.00),
+    (4, 4, 4, 40, 55.00, 2200.00),
+    (5, 5, 5, 6, 890.00, 5340.00),
+    (6, 6, 1, 20, 45.00, 900.00),
+    (7, 7, 3, 10, 180.00, 1800.00),
+    (8, 8, 2, 5, 620.00, 3100.00),
+    (9, 9, 4, 30, 55.00, 1650.00),
+    (10, 10, 5, 3, 890.00, 2670.00);
 
--- ventas (5 registros)
+-- ventas (10 registros)
 INSERT INTO ventas (id_venta, id_cliente, id_empleado, fecha, total, metodo_pago)
 VALUES
-    (1, 1, 1, '2026-09-01', 225.0, 'Efectivo'),
-    (2, 2, 2, '2026-09-02', 950.0, 'Tarjeta'),
-    (3, 3, 3, '2026-09-03', 530.0, 'Efectivo'),
-    (4, 4, 4, '2026-09-04', 712.0, 'Transferencia'),
-    (5, 5, 5, '2026-09-05', 1250.0, 'Tarjeta');
+    (1, 1, 2, '2026-09-01', 225.00, 'Efectivo'),
+    (2, 2, 2, '2026-09-02', 950.00, 'Tarjeta'),
+    (3, 3, 3, '2026-09-03', 530.00, 'Efectivo'),
+    (4, 4, 3, '2026-09-04', 712.00, 'Transferencia'),
+    (5, 5, 2, '2026-09-05', 1250.00, 'Tarjeta'),
+    (6, 1, 3, '2026-09-08', 1068.00, 'Transferencia'),
+    (7, 2, 2, '2026-09-09', 150.00, 'Efectivo'),
+    (8, 5, 3, '2026-09-11', 1060.00, 'Tarjeta'),
+    (9, 3, 2, '2026-09-15', 950.00, 'Efectivo'),
+    (10, 4, 3, '2026-09-18', 2500.00, 'Transferencia');
 
--- detalle_ventas (5 registros)
+-- detalle_ventas (10 registros)
 INSERT INTO detalle_ventas (id_detalle_venta, id_venta, id_producto, cantidad, precio_unitario, subtotal)
 VALUES
-    (1, 1, 1, 3, 75.0, 225.0),
-    (2, 2, 2, 1, 950.0, 950.0),
-    (3, 3, 3, 2, 265.0, 530.0),
-    (4, 4, 4, 8, 89.0, 712.0),
-    (5, 5, 5, 1, 1250.0, 1250.0);
+    (1, 1, 1, 3, 75.00, 225.00),
+    (2, 2, 2, 1, 950.00, 950.00),
+    (3, 3, 3, 2, 265.00, 530.00),
+    (4, 4, 4, 8, 89.00, 712.00),
+    (5, 5, 5, 1, 1250.00, 1250.00),
+    (6, 6, 4, 12, 89.00, 1068.00),
+    (7, 7, 1, 2, 75.00, 150.00),
+    (8, 8, 3, 4, 265.00, 1060.00),
+    (9, 9, 2, 1, 950.00, 950.00),
+    (10, 10, 5, 2, 1250.00, 2500.00);
 
--- inventario (5 registros)
+-- inventario (10 registros)
 INSERT INTO inventario (id_inventario, id_producto, id_almacen, cantidad_actual)
 VALUES
-    (1, 1, 1, 40),
-    (2, 1, 2, 6),
-    (3, 2, 1, 15),
-    (4, 2, 2, 60),
-    (5, 3, 1, 3);
+    (1, 1, 1, 30),
+    (2, 1, 2, 12),
+    (3, 2, 1, 4),
+    (4, 2, 2, 6),
+    (5, 3, 1, 3),
+    (6, 3, 3, 5),
+    (7, 4, 1, 15),
+    (8, 4, 4, 0),
+    (9, 5, 1, 2),
+    (10, 5, 2, 0);
 
--- movimientos_inventario (5 registros)
+-- movimientos_inventario (10 registros)
 INSERT INTO movimientos_inventario (id_movimiento, id_inventario, id_empleado, tipo_movimiento, cantidad, fecha, motivo)
 VALUES
-    (1, 1, 1, 'entrada', 8, '2026-09-01', 'Recepcion de compra a proveedor'),
-    (2, 2, 2, 'salida', 3, '2026-09-02', 'Venta en mostrador'),
-    (3, 3, 3, 'ajuste', 2, '2026-09-03', 'Ajuste por conteo fisico'),
-    (4, 4, 4, 'entrada', 10, '2026-09-04', 'Traslado entre almacenes'),
-    (5, 5, 5, 'salida', 1, '2026-09-05', 'Venta en mostrador');
-
--- =====================================================
--- Tabla de usuarios para el inicio de sesión
--- Funciona igual en SQL Server y en PostgreSQL.
--- Ejecútalo en ferreteria_db DESPUÉS del script principal.
---
--- Usuario inicial:   admin
--- Contraseña:        admin123   (cámbiala después)
---
--- La contraseña NO se guarda en texto plano: se guarda un hash
--- PBKDF2-SHA256 con sal aleatoria (formato: algoritmo$iteraciones$sal$hash).
--- Para generar el hash de otra contraseña:  python app.py --hash NuevaClave
--- =====================================================
-
-CREATE TABLE usuarios (
-    id_usuario INT NOT NULL,
-    usuario VARCHAR(50) NOT NULL,
-    contrasena VARCHAR(200) NOT NULL,
-    nombre VARCHAR(100) NOT NULL,
-    CONSTRAINT pk_usuarios PRIMARY KEY (id_usuario),
-    CONSTRAINT uq_usuarios_usuario UNIQUE (usuario)
-);
-
-INSERT INTO usuarios (id_usuario, usuario, contrasena, nombre)
-VALUES
-    (1, 'admin',
-     'pbkdf2_sha256$200000$f98e12384705caf1d45b41f400f9c3b9$139ae3720d7fd1c7b37cf24bc882842cf21dedb35e8052bf9bc3e93626a0c031',
-     'Administrador');
+    (1, 1, 4, 'entrada', 30, '2026-08-03', 'Recepcion de la compra 1'),
+    (2, 3, 1, 'entrada', 10, '2026-08-04', 'Recepcion de la compra 2'),
+    (3, 5, 4, 'entrada', 25, '2026-08-06', 'Recepcion de la compra 3'),
+    (4, 7, 4, 'entrada', 40, '2026-08-07', 'Recepcion de la compra 4'),
+    (5, 1, 2, 'salida', 3, '2026-09-01', 'Venta 1 en mostrador'),
+    (6, 3, 2, 'salida', 1, '2026-09-02', 'Venta 2 en mostrador'),
+    (7, 1, 5, 'salida', 12, '2026-09-06', 'Traslado a Bodega Central'),
+    (8, 2, 5, 'entrada', 12, '2026-09-06', 'Traslado desde Tienda Principal'),
+    (9, 6, 4, 'ajuste', 2, '2026-09-10', 'Ajuste por conteo fisico'),
+    (10, 8, 4, 'ajuste', 5, '2026-09-12', 'Baja de producto danado');
