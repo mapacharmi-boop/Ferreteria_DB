@@ -1,4 +1,4 @@
-# Sistema de inventario · Ferretería
+# Sistema de inventario · Ferretería Picazo (Sahuayo)
 
 Taller de Bases de Datos · TecNM Campus Jiquilpan · Arturo Sánchez Encina
 
@@ -18,10 +18,11 @@ Los datos de conexión van en `.env` (copia `.env.example` y pon tus contraseña
 |---|---|
 | `conpost.py` | Clase `ConexionPostgres`: `Crear_conexion`, `Ejecutar_consulta`, `Cerrar_conexion` (psycopg2) |
 | `consql.py` | Clase `ConexionSqlServer`: los mismos tres métodos (mssql_python) |
+| `modulos.py` | **Qué base usa cada módulo**: inventario en PostgreSQL, personas en SQL Server |
 | `consultas.py` | **Todo el SQL**: login, CRUD de las 6 tablas maestras y consultas del dashboard |
 | `seguridad.py` | Cifrado de contraseñas (PBKDF2) para la tabla `usuarios` |
 | `main.py` | Arranque: abre la ventana de login |
-| `ui_login.py` | Ventana de login. Aquí se **crea la conexión** según el motor elegido |
+| `ui_login.py` | Ventana de login. Aquí se **crean las conexiones** (modo Mixto, solo PostgreSQL o solo SQL Server) |
 | `ui_principal.py` | Menú principal: Archivo · **Catálogos** · Ayuda, y barra lateral |
 | `ui_catalogo.py` | Pantalla de cada catálogo: Insertar / Actualizar / Eliminar / Consultar |
 | `ui_dashboard.py` | Tarjetas y gráficas con las consultas del entregable 2 |

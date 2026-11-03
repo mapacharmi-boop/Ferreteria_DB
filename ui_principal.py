@@ -10,6 +10,7 @@ Partes de la ventana:
     4. Las páginas (Dashboard y una por cada catálogo) dentro de un QStackedWidget.
 
 Aquí NO se escribe SQL: las páginas llaman a las funciones de consultas.py.
+Cada página recibe la conexión de SU módulo (ver modulos.py).
 """
 from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (QButtonGroup, QFrame, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
@@ -22,9 +23,9 @@ from ui_dashboard import PaginaDashboard
 
 class VentanaPrincipal(QMainWindow):
 
-    def __init__(self, bd, motor, usuario, login):
+    def __init__(self, bases, conexiones, motor, usuario, login):
         super().__init__()
-        self.bd = bd              # objeto Consultas (ya trae la conexión abierta)
+        self.conexiones = conexiones   # las conexiones abiertas (1 o 2), para cerrarlas al salir
         self.login = login        # ventana de login, para regresar al cerrar sesión
         self.saliendo_a_login = False
         self.setWindowTitle(f"Ferretería · {motor}")
@@ -35,17 +36,18 @@ class VentanaPrincipal(QMainWindow):
         self.indice = {}          # clave -> número de página
         self.botones = {}         # clave -> botón de la barra lateral
 
-        self.dashboard = PaginaDashboard(bd)
+        self.dashboard = PaginaDashboard(bases["dashboard"])
         self.agregar_pagina("dashboard", self.dashboard)
 
         self.catalogos = {}       # clave -> PaginaCatalogo
-        for cfg in definir_catalogos(bd):
-            pagina = PaginaCatalogo(bd, cfg)
+        catalogos = definir_catalogos(bases)
+        for cfg in catalogos:
+            pagina = PaginaCatalogo(cfg["bd"], cfg)
             self.catalogos[cfg["clave"]] = pagina
             self.agregar_pagina(cfg["clave"], pagina)
 
         # ---------- Armar la ventana ----------
-        self.crear_menu(definir_catalogos(bd))
+        self.crear_menu(catalogos)
 
         central = QWidget()
         central.setObjectName("fondo")
@@ -59,7 +61,7 @@ class VentanaPrincipal(QMainWindow):
         cuerpo = QHBoxLayout()
         cuerpo.setContentsMargins(0, 0, 0, 0)
         cuerpo.setSpacing(0)
-        cuerpo.addWidget(self.crear_barra_lateral(definir_catalogos(bd)))
+        cuerpo.addWidget(self.crear_barra_lateral(catalogos))
         cuerpo.addWidget(self.paginas, 1)
         raiz.addLayout(cuerpo, 1)
         self.setCentralWidget(central)
@@ -121,7 +123,12 @@ class VentanaPrincipal(QMainWindow):
         h.addWidget(marca)
         h.addStretch()
 
-        for texto in (f"● {motor}", f"USUARIO: {usuario['nombre']}"):
+        if motor == "Mixto":
+            textos = ["● SQL SERVER", "● POSTGRESQL"]
+        else:
+            textos = [f"● {motor}"]
+        textos.append(f"USUARIO: {usuario['nombre']}")
+        for texto in textos:
             pastilla = QLabel(texto)
             pastilla.setObjectName("pastilla")
             h.addWidget(pastilla)
@@ -193,7 +200,8 @@ class VentanaPrincipal(QMainWindow):
         self.close()
 
     def closeEvent(self, evento):
-        self.bd.cerrar()                 # siempre se cierra la conexión
+        for bd in self.conexiones:       # siempre se cierran las conexiones
+            bd.cerrar()
         if self.saliendo_a_login:
             self.login.reiniciar()
         evento.accept()

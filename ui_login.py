@@ -1,10 +1,15 @@
 """
 Ventana de inicio de sesión.
 
-Aquí se CREA LA CONEXIÓN a la base de datos:
-    - Si se elige PostgreSQL  -> ConexionPostgres()   (archivo conpost.py)
-    - Si se elige SQL Server  -> ConexionSqlServer()  (archivo consql.py)
-Luego se revisa el usuario con bd.iniciar_sesion() (archivo consultas.py).
+Aquí se CREAN LAS CONEXIONES a la base de datos:
+    - PostgreSQL  -> ConexionPostgres()   (archivo conpost.py)
+    - SQL Server  -> ConexionSqlServer()  (archivo consql.py)
+
+Modos:
+    - Mixto: se abren las DOS conexiones y cada módulo usa la que diga modulos.py
+    - Solo PostgreSQL / Solo SQL Server: todos los módulos usan la misma
+
+Luego se revisa el usuario con iniciar_sesion() (archivo consultas.py).
 """
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (QComboBox, QFrame, QHBoxLayout, QLabel, QLineEdit,
@@ -14,6 +19,7 @@ from conpost import ConexionPostgres
 from consql import ConexionSqlServer
 from consultas import Consultas
 from estilos import ROJO, Cuadricula, Marquesina
+from modulos import MOTOR_DE_CADA_MODULO
 
 
 class VentanaLogin(QWidget):
@@ -52,7 +58,7 @@ class VentanaLogin(QWidget):
         titulo = QLabel("FERRETERÍA")
         titulo.setObjectName("titulo")
         t.addWidget(titulo)
-        sub = QLabel("Sistema de control de inventarios\nSQL Server · PostgreSQL")
+        sub = QLabel("Ferretería Picazo · Sahuayo\nControl de inventarios · SQL Server + PostgreSQL")
         sub.setObjectName("subtitulo")
         t.addWidget(sub)
         capa.addWidget(tarjeta)
@@ -75,14 +81,14 @@ class VentanaLogin(QWidget):
         v.addSpacing(18)
 
         self.motor = QComboBox()
-        self.motor.addItems(["PostgreSQL", "SQL Server"])
+        self.motor.addItems(["Mixto (SQL Server + PostgreSQL)", "Solo PostgreSQL", "Solo SQL Server"])
         self.usuario = QLineEdit()
         self.usuario.setPlaceholderText("admin")
         self.clave = QLineEdit()
         self.clave.setEchoMode(QLineEdit.EchoMode.Password)
         self.clave.returnPressed.connect(self.entrar)
 
-        for texto, campo in (("BASE DE DATOS", self.motor), ("USUARIO", self.usuario),
+        for texto, campo in (("MODO DE BASE DE DATOS", self.motor), ("USUARIO", self.usuario),
                              ("CONTRASEÑA", self.clave)):
             etiqueta = QLabel(texto)
             etiqueta.setObjectName("seccion")
@@ -106,29 +112,52 @@ class VentanaLogin(QWidget):
     # ---------- Al presionar ENTRAR ----------
     def entrar(self):
         self.error.setText("")
+        modo = self.motor.currentText()
 
-        # 1. Crear la conexión según el motor elegido
-        if self.motor.currentText() == "PostgreSQL":
-            conexion = ConexionPostgres()
+        # 1. ¿Qué motores hay que abrir?
+        if modo.startswith("Mixto"):
+            motores = ["PostgreSQL", "SQL Server"]
+        elif modo == "Solo PostgreSQL":
+            motores = ["PostgreSQL"]
         else:
-            conexion = ConexionSqlServer()
+            motores = ["SQL Server"]
 
-        if conexion.Crear_conexion() is None:
-            self.error.setText("No se pudo conectar. Revisa el archivo .env y que el servidor "
-                               f"esté encendido.\n{conexion.ERROR or ''}")
-            return
+        # 2. Crear una conexión por cada motor
+        abiertas = {}                       # "PostgreSQL" -> Consultas(...)
+        for motor in motores:
+            if motor == "PostgreSQL":
+                conexion = ConexionPostgres()
+            else:
+                conexion = ConexionSqlServer()
 
-        # 2. Revisar usuario y contraseña (SELECT en la tabla usuarios)
-        bd = Consultas(conexion)
-        usuario, mensaje = bd.iniciar_sesion(self.usuario.text().strip(), self.clave.text())
+            if conexion.Crear_conexion() is None:
+                for bd in abiertas.values():   # cerrar las que sí se abrieron
+                    bd.cerrar()
+                self.error.setText(f"No se pudo conectar a {motor}. Revisa el archivo .env y que "
+                                   f"el servidor esté encendido.\n{conexion.ERROR or ''}")
+                return
+            abiertas[motor] = Consultas(conexion)
+
+        # 3. Decidir qué conexión usa cada módulo
+        bases = {}
+        for modulo, motor in MOTOR_DE_CADA_MODULO.items():
+            if len(motores) == 2:
+                bases[modulo] = abiertas[motor]        # mixto: lo que diga modulos.py
+            else:
+                bases[modulo] = abiertas[motores[0]]   # un solo motor para todo
+
+        # 4. Revisar usuario y contraseña (SELECT en la tabla usuarios)
+        usuario, mensaje = bases["login"].iniciar_sesion(self.usuario.text().strip(), self.clave.text())
         if usuario is None:
-            bd.cerrar()
+            for bd in abiertas.values():
+                bd.cerrar()
             self.error.setText(mensaje)
             return
 
-        # 3. Abrir la ventana principal y ocultar el login
+        # 5. Abrir la ventana principal y ocultar el login
         from ui_principal import VentanaPrincipal
-        self.principal = VentanaPrincipal(bd, self.motor.currentText(), usuario, self)
+        nombre_modo = "Mixto" if len(motores) == 2 else motores[0]
+        self.principal = VentanaPrincipal(bases, list(abiertas.values()), nombre_modo, usuario, self)
         self.principal.show()
         self.hide()
 

@@ -11,6 +11,7 @@ class ConexionSqlServer():
     # En SQL Server los parámetros de una consulta se escriben con ?
     # Ejemplo:  SELECT * FROM clientes WHERE id_cliente = ?
     MARCADOR = "?"
+    MOTOR = "SQL Server"          # nombre que se muestra en la ventana
 
     # 1. CONSTRUCTOR
     def __init__(self):

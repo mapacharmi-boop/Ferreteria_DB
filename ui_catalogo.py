@@ -25,12 +25,17 @@ def dinero(valor):
     return f"{signo}${abs(valor):,.2f}"
 
 
-def definir_catalogos(bd):
+def definir_catalogos(bases):
     """Describe cada tabla maestra: qué columnas se ven, qué campos lleva el formulario
     y qué funciones de consultas.py se usan para cada operación del CRUD.
 
     columnas: (nombre_columna, encabezado, es_dinero)
     campos:   (nombre_columna, etiqueta, tipo)   tipo = texto | entero | decimal | fecha | categoria | unidad
+
+    bases es un diccionario que dice con qué base de datos trabaja cada catálogo
+    (se arma en ui_login.py según modulos.py), por ejemplo:
+        bases["categorias"] -> Consultas conectada a PostgreSQL
+        bases["clientes"]   -> Consultas conectada a SQL Server
     """
     return [
         dict(clave="categorias", titulo="Categorías", singular="categoría",
@@ -39,9 +44,10 @@ def definir_catalogos(bd):
              columnas=[("id_categoria", "ID", False), ("nombre", "Nombre", False),
                        ("descripcion", "Descripción", False)],
              campos=[("nombre", "Nombre", "texto"), ("descripcion", "Descripción", "texto")],
-             consultar=bd.categorias_consultar, obtener=bd.categorias_obtener,
-             insertar=bd.categorias_insertar, actualizar=bd.categorias_actualizar,
-             eliminar=bd.categorias_eliminar),
+             bd=bases["categorias"],
+             consultar=bases["categorias"].categorias_consultar, obtener=bases["categorias"].categorias_obtener,
+             insertar=bases["categorias"].categorias_insertar, actualizar=bases["categorias"].categorias_actualizar,
+             eliminar=bases["categorias"].categorias_eliminar),
 
         dict(clave="productos", titulo="Productos", singular="producto",
              descripcion="Artículos a la venta con su precio y su stock mínimo.",
@@ -55,9 +61,10 @@ def definir_catalogos(bd):
                      ("precio_compra", "Precio de compra", "decimal"),
                      ("precio_venta", "Precio de venta", "decimal"),
                      ("stock_minimo", "Stock mínimo", "entero")],
-             consultar=bd.productos_consultar, obtener=bd.productos_obtener,
-             insertar=bd.productos_insertar, actualizar=bd.productos_actualizar,
-             eliminar=bd.productos_eliminar),
+             bd=bases["productos"],
+             consultar=bases["productos"].productos_consultar, obtener=bases["productos"].productos_obtener,
+             insertar=bases["productos"].productos_insertar, actualizar=bases["productos"].productos_actualizar,
+             eliminar=bases["productos"].productos_eliminar),
 
         dict(clave="proveedores", titulo="Proveedores", singular="proveedor",
              descripcion="Empresas que surten a la ferretería.",
@@ -68,9 +75,10 @@ def definir_catalogos(bd):
              campos=[("nombre_empresa", "Empresa", "texto"), ("contacto", "Contacto", "texto"),
                      ("telefono", "Teléfono", "texto"), ("correo", "Correo", "texto"),
                      ("direccion", "Dirección", "texto")],
-             consultar=bd.proveedores_consultar, obtener=bd.proveedores_obtener,
-             insertar=bd.proveedores_insertar, actualizar=bd.proveedores_actualizar,
-             eliminar=bd.proveedores_eliminar),
+             bd=bases["proveedores"],
+             consultar=bases["proveedores"].proveedores_consultar, obtener=bases["proveedores"].proveedores_obtener,
+             insertar=bases["proveedores"].proveedores_insertar, actualizar=bases["proveedores"].proveedores_actualizar,
+             eliminar=bases["proveedores"].proveedores_eliminar),
 
         dict(clave="clientes", titulo="Clientes", singular="cliente",
              descripcion="Personas y empresas que compran.",
@@ -80,9 +88,10 @@ def definir_catalogos(bd):
                        ("direccion", "Dirección", False)],
              campos=[("nombre", "Nombre", "texto"), ("telefono", "Teléfono", "texto"),
                      ("correo", "Correo", "texto"), ("direccion", "Dirección", "texto")],
-             consultar=bd.clientes_consultar, obtener=bd.clientes_obtener,
-             insertar=bd.clientes_insertar, actualizar=bd.clientes_actualizar,
-             eliminar=bd.clientes_eliminar),
+             bd=bases["clientes"],
+             consultar=bases["clientes"].clientes_consultar, obtener=bases["clientes"].clientes_obtener,
+             insertar=bases["clientes"].clientes_insertar, actualizar=bases["clientes"].clientes_actualizar,
+             eliminar=bases["clientes"].clientes_eliminar),
 
         dict(clave="empleados", titulo="Empleados", singular="empleado",
              descripcion="Personal de la ferretería.",
@@ -92,9 +101,10 @@ def definir_catalogos(bd):
                        ("fecha_ingreso", "Ingreso", False)],
              campos=[("nombre", "Nombre", "texto"), ("puesto", "Puesto", "texto"),
                      ("telefono", "Teléfono", "texto"), ("fecha_ingreso", "Fecha de ingreso", "fecha")],
-             consultar=bd.empleados_consultar, obtener=bd.empleados_obtener,
-             insertar=bd.empleados_insertar, actualizar=bd.empleados_actualizar,
-             eliminar=bd.empleados_eliminar),
+             bd=bases["empleados"],
+             consultar=bases["empleados"].empleados_consultar, obtener=bases["empleados"].empleados_obtener,
+             insertar=bases["empleados"].empleados_insertar, actualizar=bases["empleados"].empleados_actualizar,
+             eliminar=bases["empleados"].empleados_eliminar),
 
         dict(clave="almacenes", titulo="Almacenes", singular="almacén",
              descripcion="Tiendas y bodegas donde se guarda la mercancía.",
@@ -102,9 +112,10 @@ def definir_catalogos(bd):
              columnas=[("id_almacen", "ID", False), ("nombre", "Nombre", False),
                        ("ubicacion", "Ubicación", False)],
              campos=[("nombre", "Nombre", "texto"), ("ubicacion", "Ubicación", "texto")],
-             consultar=bd.almacenes_consultar, obtener=bd.almacenes_obtener,
-             insertar=bd.almacenes_insertar, actualizar=bd.almacenes_actualizar,
-             eliminar=bd.almacenes_eliminar),
+             bd=bases["almacenes"],
+             consultar=bases["almacenes"].almacenes_consultar, obtener=bases["almacenes"].almacenes_obtener,
+             insertar=bases["almacenes"].almacenes_insertar, actualizar=bases["almacenes"].almacenes_actualizar,
+             eliminar=bases["almacenes"].almacenes_eliminar),
     ]
 
 
@@ -136,9 +147,16 @@ class PaginaCatalogo(QWidget):
         v.setContentsMargins(28, 24, 28, 24)
         v.setSpacing(12)
 
+        # Título y, a la derecha, en qué base de datos se guarda este catálogo
+        fila = QHBoxLayout()
         titulo = QLabel(cfg["titulo"].upper())
         titulo.setObjectName("titulo")
-        v.addWidget(titulo)
+        fila.addWidget(titulo)
+        fila.addStretch()
+        motor = QLabel(f"● SE GUARDA EN {bd.motor.upper()}")
+        motor.setObjectName("pastilla")
+        fila.addWidget(motor)
+        v.addLayout(fila)
         sub = QLabel(cfg["descripcion"])
         sub.setObjectName("subtitulo")
         v.addWidget(sub)
@@ -163,8 +181,10 @@ class PaginaCatalogo(QWidget):
         self.tabla.setHorizontalHeaderLabels([c[1].upper() for c in cfg["columnas"]])
         self.tabla.verticalHeader().setVisible(False)
         self.tabla.verticalHeader().setDefaultSectionSize(36)
-        # la columna 1 (nombre) ocupa el espacio que sobra
-        self.tabla.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        # cada columna se ajusta a su contenido y la 1 (nombre) ocupa el espacio que sobra
+        encabezado = self.tabla.horizontalHeader()
+        encabezado.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        encabezado.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tabla.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -212,7 +232,6 @@ class PaginaCatalogo(QWidget):
                 if es_dinero:
                     celda.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.tabla.setItem(i, j, celda)
-        self.tabla.resizeColumnsToContents()
         self.pie.setText(f"{len(registros)} REGISTRO(S)")
 
     # ---------- INSERTAR ----------
@@ -313,7 +332,7 @@ class DialogoRegistro(QDialog):
             elif tipo == "categoria":
                 # Lista con las categorías que existen (SELECT a la tabla categorias)
                 campo = QComboBox()
-                for c in bd.categorias_consultar()["registros"]:
+                for c in bases["categorias"].categorias_consultar()["registros"]:
                     campo.addItem(c["nombre"], c["id_categoria"])
                 if valor is not None:
                     campo.setCurrentIndex(max(0, campo.findData(int(valor))))

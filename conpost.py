@@ -11,6 +11,7 @@ class ConexionPostgres():
     # En PostgreSQL los parámetros de una consulta se escriben con %s
     # Ejemplo:  SELECT * FROM clientes WHERE id_cliente = %s
     MARCADOR = "%s"
+    MOTOR = "PostgreSQL"          # nombre que se muestra en la ventana
 
     # 1. CONSTRUCTOR
     def __init__(self):

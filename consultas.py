@@ -28,6 +28,7 @@ class Consultas:
         self.conexion = conexion
         # P es el marcador de parámetros del motor que se eligió en el login
         self.P = conexion.MARCADOR
+        self.motor = conexion.MOTOR      # "PostgreSQL" o "SQL Server"
 
     # ------------------------------------------------------------
     # Función base: TODAS las demás pasan por aquí
