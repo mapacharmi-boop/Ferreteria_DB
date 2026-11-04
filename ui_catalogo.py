@@ -332,7 +332,7 @@ class DialogoRegistro(QDialog):
             elif tipo == "categoria":
                 # Lista con las categorías que existen (SELECT a la tabla categorias)
                 campo = QComboBox()
-                for c in bases["categorias"].categorias_consultar()["registros"]:
+                for c in bd.categorias_consultar()["registros"]:
                     campo.addItem(c["nombre"], c["id_categoria"])
                 if valor is not None:
                     campo.setCurrentIndex(max(0, campo.findData(int(valor))))
